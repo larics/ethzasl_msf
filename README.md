@@ -7,6 +7,7 @@ Please see the wiki for more information: https://github.com/ethz-asl/ethzasl_ms
 
 ## Dependencies
 glog_catkin (https://github.com/ethz-asl/glog_catkin)
+
 catkin_simple (https://github.com/catkin/catkin_simple)
 
 ## Documentation
