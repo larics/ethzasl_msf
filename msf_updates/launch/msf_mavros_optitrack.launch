@@ -1,16 +1,20 @@
 <launch>
 
+  <arg name="tracker_name" default="f550" />
+
   <include file="$(find msf_updates)/launch/optitrack.launch"/>
 
   <include file="$(find misc_transformations)/launch/optitrack_pose_to_transform_stamped.launch">
-      <arg name="optitrack_pose_topic" value="/vrpn_client_node/f550/pose"/>
-      <arg name="transform_stamped_topic" value="/f550/pose"/>
+      <arg name="tracker_name" value="$(arg tracker_name)"/>
   </include>
 
- <include file="$(find mavros)/launch/px4.launch">
+ <include file="$(find msf_updates)/launch/px4.launch">
+      <arg name="namespace" value="$(arg tracker_name)" />
       <arg name="fcu_url" value="/dev/ttyACM0:57600"/>
  </include>
     
- <include file="$(find msf_updates)/launch/mocap_pose_sensor.launch"/>
+ <include file="$(find msf_updates)/launch/mocap_pose_sensor.launch">
+      <arg name="namespace" value="$(arg tracker_name)" />
+ </include>
 
 </launch>
