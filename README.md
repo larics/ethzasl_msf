@@ -12,6 +12,10 @@ glog_catkin (https://github.com/ethz-asl/glog_catkin)
 
 catkin_simple (https://github.com/catkin/catkin_simple)
 
+If you are using bare bone ROS version install the following packages
+```
+ $ sudo apt-get install ros-kinetic-image-transport ros-kinetic-image-geometry
+```
 ## Know issues
 If your PC freezes during the compilation, you should check on your swap memory. Instructions how to add swap memory on existing Ubuntu installation can be found online (e.g. https://askubuntu.com/questions/33697/how-do-i-add-a-swap-partition-after-system-installation).
 
