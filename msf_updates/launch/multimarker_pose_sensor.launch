@@ -8,7 +8,7 @@
 
 		<remap from="msf_core/imu_state_input" to="/f550/mavros/imu/data"  />
 		<remap from="msf_updates/transform_input" to="/f550/ar_tracker/pose_tf" />
-		<rosparam file="$(find msf_updates)/optitrack_pose_sensor_fix.yaml"/>
+		<rosparam file="$(find msf_updates)/multimarker_pose_sensor_fix.yaml"/>
     </node>
     
 </launch>
