@@ -7,6 +7,6 @@
           <remap from="msf_core/imu_state_input" to="$(arg imu_topic)" />a
           <remap from="msf_updates/transform_input" to="$(arg position_topic)" />
           
-          <rosparam file="$(find msf_updates)/pose_sensor_fix.yaml"/>
+          <rosparam file="$(find msf_updates)/pose_sensor_fix_erl.yaml"/>
     </node>
 </launch>
