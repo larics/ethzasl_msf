@@ -23,9 +23,15 @@ data_playback: false             # Set to true for playback, set to false on the
 #  gyro: [rad/s^2/sqrt(Hz)]
 
 ####### IMU Pixhawk MPU6050
-core/core_noise_acc: 0.013
-core/core_noise_accbias: 0.000108
-core/core_noise_gyr: 0.0065
+#core/core_noise_acc: 0.013
+#core/core_noise_accbias: 0.000108
+#core/core_noise_gyr: 0.0065
+#core/core_noise_gyrbias: 0.00000212
+
+####### IMU Pixhawk MPU6050
+core/core_noise_acc: 0.2
+core/core_noise_accbias: 0.005
+core/core_noise_gyr: 0.03
 core/core_noise_gyrbias: 0.00000212
 ####### ADIS 16448
 #core/core_noise_acc: 0.0022563    # [m/s^2/sqrt(Hz)]
