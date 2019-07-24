@@ -1,0 +1,13 @@
+<launch>
+	
+	<arg name="imu_topic" default="/mavros/imu/data" />
+	<arg name="group" default="Pozyx" />
+	<arg name="position_topic" default="/mavros/local_position/pose"/>
+	
+    <node name="msf_pose_sensor" pkg="msf_updates" type="pose_sensor" clear_params="true" output="screen">
+          <remap from="msf_core/imu_state_input" to="$(arg imu_topic)" />
+          <remap from="msf_updates/pose_input" to="$(arg position_topic)" />>
+          <param name="capability_group" value="$(arg group)" />
+          <rosparam file="$(find msf_updates)/msf_bebop_params.yaml"/>
+    </node>
+</launch>
