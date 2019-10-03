@@ -33,6 +33,14 @@ class DoublePoseSensorManager :
             msf_updates::EKFState::StateDefinition_T::q_wv,
             msf_updates::EKFState::StateDefinition_T::p_wv>, 
         DoublePoseSensorManager> GPSPoseSensorHandler_T;
+    friend class msf_pose_sensor::PoseSensorHandler<
+        msf_updates::pose_measurement::PoseMeasurement<
+            msf_updates::EKFState::StateDefinition_T::L,
+            msf_updates::EKFState::StateDefinition_T::q_ic,
+            msf_updates::EKFState::StateDefinition_T::p_ic,
+            msf_updates::EKFState::StateDefinition_T::q_wv,
+            msf_updates::EKFState::StateDefinition_T::p_wv>, 
+        DoublePoseSensorManager>;
     
     /* Camera Pose sensor Handler type definition */
     typedef msf_pose_sensor::PoseSensorHandler<
@@ -43,7 +51,15 @@ class DoublePoseSensorManager :
             msf_updates::EKFState::StateDefinition_T::q1_wv,
             msf_updates::EKFState::StateDefinition_T::p1_wv>, 
         DoublePoseSensorManager> CameraPoseSensorHandler_T;
-    
+    friend class msf_pose_sensor::PoseSensorHandler<
+        msf_updates::pose_measurement::PoseMeasurement<
+            msf_updates::EKFState::StateDefinition_T::L,
+            msf_updates::EKFState::StateDefinition_T::q1_ic,
+            msf_updates::EKFState::StateDefinition_T::p1_ic,
+            msf_updates::EKFState::StateDefinition_T::q1_wv,
+            msf_updates::EKFState::StateDefinition_T::p1_wv>, 
+        DoublePoseSensorManager>;
+        
 public:
     typedef msf_updates::EKFState EKFState_T;
     typedef EKFState_T::StateSequence_T StateSequence_T;
@@ -56,10 +72,10 @@ public:
         new msf_core::IMUHandler_ROS<msf_updates::EKFState>(*this, "msf_core",
                                                             "imu_handler"));
     gps_pose_handler_.reset(
-        new GPSPoseSensorHandler_T(*this, "", "gps_pose_sensor", distortmeas));
+        new GPSPoseSensorHandler_T(*this, "gps_pose_sensor", "gps_pose_sensor", distortmeas));
 
     camera_pose_handler_.reset(
-        new CameraPoseSensorHandler_T(*this, "", "camera_pose_sensor", distortmeas));
+        new CameraPoseSensorHandler_T(*this, "camera_pose_sensor", "camera_pose_sensor", distortmeas));
 
     AddHandler(gps_pose_handler_);
     AddHandler(camera_pose_handler_);
@@ -164,7 +180,186 @@ private:
     }
 
     void Init(double scale) const {
-        // TODO: 
+        Eigen::Matrix<double, 3, 1> p, v, b_w, b_a, g, w_m, a_m, 
+                                    p_ic, p_vc, p_wv, 
+                                    p1_ic, p1_vc, p1_wv;
+        Eigen::Quaternion<double> q, q_wv, q_ic, q_cv, 
+                                    q1_wv, q1_ic, q1_cv;
+        msf_core::MSF_Core<EKFState_T>::ErrorStateCov P;
+
+        // init values
+        g << 0, 0, 9.81;	        /// Gravity.
+        b_w << 0, 0, 0;		/// Bias gyroscopes.
+        b_a << 0, 0, 0;		/// Bias accelerometer.
+
+        v << 0, 0, 0;			/// Robot velocity (IMU centered).
+        w_m << 0, 0, 0;		/// Initial angular velocity.
+
+        q_wv.setIdentity();  // GPS-world rotation drift.
+        p_wv.setZero();     // GPS-world position drift.
+
+        q1_wv.setIdentity();  // Vision - world rotation drift
+        p1_wv.setZero();      // Vision - world position drift  
+
+        P.setZero();  // Error state covariance; if zero, a default initialization in msf_core is used
+
+        // Initialize from GPS readings
+        p_vc = gps_pose_handler_->GetPositionMeasurement();
+        q_cv = gps_pose_handler_->GetAttitudeMeasurement();
+        if (p_vc.norm() == 0)
+            MSF_WARN_STREAM(
+                "No measurements received yet to initialize position - using [0 0 0]");
+        if (q_cv.w() == 1)
+            MSF_WARN_STREAM(
+                "No measurements received yet to initialize attitude - using [1 0 0 0]");
+        
+        ros::NodeHandle pnh("~");
+        pnh.param("gps_pose_sensor/init/p_ic/x", p_ic[0], 0.0);
+        pnh.param("gps_pose_sensor/init/p_ic/y", p_ic[1], 0.0);
+        pnh.param("gps_pose_sensor/init/p_ic/z", p_ic[2], 0.0);
+        pnh.param("gps_pose_sensor/init/q_ic/w", q_ic.w(), 1.0);
+        pnh.param("gps_pose_sensor/init/q_ic/x", q_ic.x(), 0.0);
+        pnh.param("gps_pose_sensor/init/q_ic/y", q_ic.y(), 0.0);
+        pnh.param("gps_pose_sensor/init/q_ic/z", q_ic.z(), 0.0);
+        q_ic.normalize();
+
+        pnh.param("camera_pose_sensor/init/p_ic/x", p1_ic[0], 0.0);
+        pnh.param("camera_pose_sensor/init/p_ic/y", p1_ic[1], 0.0);
+        pnh.param("camera_pose_sensor/init/p_ic/z", p1_ic[2], 0.0);
+        pnh.param("camera_pose_sensor/init/q_ic/w", q1_ic.w(), 1.0);
+        pnh.param("camera_pose_sensor/init/q_ic/x", q1_ic.x(), 0.0);
+        pnh.param("camera_pose_sensor/init/q_ic/y", q1_ic.y(), 0.0);
+        pnh.param("camera_pose_sensor/init/q_ic/z", q1_ic.z(), 0.0);
+        q_ic.normalize();
+
+        // Calculate initial attitude and position based on sensor measurements.
+        if (!gps_pose_handler_->ReceivedFirstMeasurement()) {  // If there is no pose measurement, only apply q_wv.
+            q = q_wv;
+        } else {  // If there is a pose measurement, apply q_ic and q_wv to get initial attitude.
+            q = (q_ic * q_cv.conjugate() * q_wv).conjugate();
+        }
+
+        q.normalize();
+        p = p_wv + q_wv.conjugate().toRotationMatrix() * p_vc / scale
+            - q.toRotationMatrix() * p_ic;
+
+        a_m = q.inverse() * g;			/// Initial acceleration.
+
+        // Prepare init "measurement"
+        // True means that this message contains initial sensor readings.
+        shared_ptr < msf_core::MSF_InitMeasurement<EKFState_T>
+            > meas(new msf_core::MSF_InitMeasurement<EKFState_T>(true));
+        meas->SetStateInitValue < StateDefinition_T::p > (p);
+        meas->SetStateInitValue < StateDefinition_T::v > (v);
+        meas->SetStateInitValue < StateDefinition_T::q > (q);
+        meas->SetStateInitValue < StateDefinition_T::b_w > (b_w);
+        meas->SetStateInitValue < StateDefinition_T::b_a > (b_a);
+        meas->SetStateInitValue < StateDefinition_T::L
+            > (Eigen::Matrix<double, 1, 1>::Constant(scale));
+        meas->SetStateInitValue < StateDefinition_T::q_wv > (q_wv);
+        meas->SetStateInitValue < StateDefinition_T::p_wv > (p_wv);
+        meas->SetStateInitValue < StateDefinition_T::q_ic > (q_ic);
+        meas->SetStateInitValue < StateDefinition_T::p_ic > (p_ic);
+        meas->SetStateInitValue < StateDefinition_T::q1_wv > (q1_wv);
+        meas->SetStateInitValue < StateDefinition_T::p1_wv > (p1_wv);
+        meas->SetStateInitValue < StateDefinition_T::q1_ic > (q1_ic);
+        meas->SetStateInitValue < StateDefinition_T::p1_ic > (p1_ic);
+
+        SetStateCovariance(meas->GetStateCovariance());  // Call my set P function.
+        meas->Getw_m() = w_m;
+        meas->Geta_m() = a_m;
+        meas->time = ros::Time::now().toSec();
+
+        // Call initialization in core.
+        msf_core_->Init(meas);
+    }
+
+    // Prior to this call, all states are initialized to zero/identity.
+    virtual void ResetState(EKFState_T& state) const {
+        //set scale to 1
+        Eigen::Matrix<double, 1, 1> scale;
+        scale << 1.0;
+        state.Set < StateDefinition_T::L > (scale);
+    }  
+    
+    virtual void InitState(EKFState_T& state) const {
+        UNUSED(state);
+    }
+
+    virtual void CalculateQAuxiliaryStates(EKFState_T& state, double dt) const {
+        const msf_core::Vector3 nqwvv = msf_core::Vector3::Constant(
+            config_.pose_noise_q_wv);
+        const msf_core::Vector3 npwvv = msf_core::Vector3::Constant(
+            config_.pose_noise_p_wv);
+        const msf_core::Vector3 nqicv = msf_core::Vector3::Constant(
+            config_.pose_noise_q_ic);
+        const msf_core::Vector3 npicv = msf_core::Vector3::Constant(
+            config_.pose_noise_p_ic);
+
+        const msf_core::Vector3 nq1wvv = msf_core::Vector3::Constant(
+            config_.pose_noise_q1_wv);
+        const msf_core::Vector3 np1wvv = msf_core::Vector3::Constant(
+            config_.pose_noise_p1_wv);
+        const msf_core::Vector3 nq1icv = msf_core::Vector3::Constant(
+            config_.pose_noise_q1_ic);
+        const msf_core::Vector3 np1icv = msf_core::Vector3::Constant(
+            config_.pose_noise_p1_ic);
+            
+        const msf_core::Vector1 n_L = msf_core::Vector1::Constant(
+            config_.pose_noise_scale);
+
+        // Compute the blockwise Q values and store them with the states,
+        // these then get copied by the core to the correct places in Qd.
+        state.GetQBlock<StateDefinition_T::L>() = (dt * n_L.cwiseProduct(n_L))
+            .asDiagonal();
+        state.GetQBlock<StateDefinition_T::q_wv>() =
+            (dt * nqwvv.cwiseProduct(nqwvv)).asDiagonal();
+        state.GetQBlock<StateDefinition_T::p_wv>() =
+            (dt * npwvv.cwiseProduct(npwvv)).asDiagonal();
+        state.GetQBlock<StateDefinition_T::q_ic>() =
+            (dt * nqicv.cwiseProduct(nqicv)).asDiagonal();
+        state.GetQBlock<StateDefinition_T::p_ic>() =
+            (dt * npicv.cwiseProduct(npicv)).asDiagonal();
+        
+        state.GetQBlock<StateDefinition_T::q1_wv>() =
+            (dt * nq1wvv.cwiseProduct(nq1wvv)).asDiagonal();
+        state.GetQBlock<StateDefinition_T::p1_wv>() =
+            (dt * np1wvv.cwiseProduct(np1wvv)).asDiagonal();
+        state.GetQBlock<StateDefinition_T::q1_ic>() =
+            (dt * nq1icv.cwiseProduct(nq1icv)).asDiagonal();
+        state.GetQBlock<StateDefinition_T::p1_ic>() =
+            (dt * np1icv.cwiseProduct(np1icv)).asDiagonal();
+    }
+
+    virtual void SetStateCovariance(
+        Eigen::Matrix<double, EKFState_T::nErrorStatesAtCompileTime,
+            EKFState_T::nErrorStatesAtCompileTime>& P) const {
+        UNUSED(P);
+        // Nothing, we only use the simulated cov for the core plus diagonal for the
+        // rest.
+    }
+
+    virtual void AugmentCorrectionVector(
+        Eigen::Matrix<double, EKFState_T::nErrorStatesAtCompileTime, 1>& correction) const {
+        UNUSED(correction);
+    }
+
+    virtual void SanityCheckCorrection(
+        EKFState_T& delaystate,
+        const EKFState_T& buffstate, 
+        Eigen::Matrix<double, EKFState_T::nErrorStatesAtCompileTime, 1>& correction) const {
+        UNUSED(buffstate);
+        UNUSED(correction);
+
+        const EKFState_T& state = delaystate;
+        if (state.Get<StateDefinition_T::L>()(0) < 0) {
+            MSF_WARN_STREAM_THROTTLE(
+                1,
+                "Negative scale detected: " << state.Get<StateDefinition_T::L>()(0) << ". Correcting to 0.1");
+            Eigen::Matrix<double, 1, 1> L_;
+            L_ << 0.1;
+            delaystate.Set < StateDefinition_T::L > (L_);
+        }
     }
 };
 
