@@ -222,6 +222,8 @@ private:
         pnh.param("gps_pose_sensor/init/q_ic/y", q_ic.y(), 0.0);
         pnh.param("gps_pose_sensor/init/q_ic/z", q_ic.z(), 0.0);
         q_ic.normalize();
+        //MSF_INFO_STREAM("IMU - GPS offset position: " << p_ic);
+        //MSF_INFO_STREAM("IMU - GPS offset quaternion: " << q_ic);
 
         pnh.param("camera_pose_sensor/init/p_ic/x", p1_ic[0], 0.0);
         pnh.param("camera_pose_sensor/init/p_ic/y", p1_ic[1], 0.0);
@@ -230,7 +232,9 @@ private:
         pnh.param("camera_pose_sensor/init/q_ic/x", q1_ic.x(), 0.0);
         pnh.param("camera_pose_sensor/init/q_ic/y", q1_ic.y(), 0.0);
         pnh.param("camera_pose_sensor/init/q_ic/z", q1_ic.z(), 0.0);
-        q_ic.normalize();
+        q1_ic.normalize();
+        //MSF_INFO_STREAM("IMU - Camera offset position: " << p1_ic);
+        //MSF_INFO_STREAM("IMU - camera offset quaternion: " << q1_ic);
 
         // Calculate initial attitude and position based on sensor measurements.
         if (!gps_pose_handler_->ReceivedFirstMeasurement()) {  // If there is no pose measurement, only apply q_wv.
