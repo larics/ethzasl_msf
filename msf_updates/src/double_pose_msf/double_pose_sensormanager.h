@@ -77,8 +77,8 @@ public:
     camera_pose_handler_.reset(
         new CameraPoseSensorHandler_T(*this, "camera_pose_sensor", "camera_pose_sensor", distortmeas));
 
-    AddHandler(gps_pose_handler_);
     AddHandler(camera_pose_handler_);
+    AddHandler(gps_pose_handler_);
 
     reconf_server_.reset(new ReconfigureServer(pnh));
     ReconfigureServer::CallbackType f = boost::bind(&DoublePoseSensorManager::Config,
