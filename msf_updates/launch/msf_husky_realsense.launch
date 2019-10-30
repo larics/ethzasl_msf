@@ -1,0 +1,15 @@
+<launch>
+	<arg name="imu_topic" default="mavros/imu/data" />
+	<arg name="position_topic" default="mavros/local_position/pose"/>
+	<arg name="camera_odometry" default="camera/pose"/>
+
+    <arg name="namespace" default="erl_husky"/>
+    	
+    <node name="double_pose_sensor" pkg="msf_updates" type="double_pose_sensor" clear_params="true" output="screen"
+        ns="$(arg namespace)">
+          <remap from="msf_core/imu_state_input" to="$(arg imu_topic)" />
+          <remap from="msf_updates/gps_pose_sensor/pose_input" to="$(arg position_topic)" />
+	  <remap from="msf_updates/camera_pose_sensor/pose_input" to="$(arg camera_odometry)" />
+          <rosparam file="$(find msf_updates)/msf_husky_params_realsense.yaml"/>
+    </node>
+</launch>
