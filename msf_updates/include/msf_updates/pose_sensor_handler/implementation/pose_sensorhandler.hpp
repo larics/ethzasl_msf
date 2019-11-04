@@ -65,6 +65,7 @@ PoseSensorHandler<MEASUREMENT_TYPE, MANAGER_TYPE>::PoseSensorHandler(
                        "measurements as absolute values");
   MSF_INFO_STREAM_COND(!provides_absolute_measurements_, "Pose sensor is "
                        "handling measurements as relative values");
+  MSF_INFO_STREAM("Pose measurement minimum dt is: " <<  pose_measurement_minimum_dt_);
 
   ros::NodeHandle nh("msf_updates/" + topic_namespace);
   subPoseWithCovarianceStamped_ =

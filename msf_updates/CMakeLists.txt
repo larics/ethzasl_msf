@@ -22,6 +22,7 @@ generate_dynamic_reconfigure_options(
     cfg/SinglePoseSensor.cfg
     cfg/SinglePositionSensor.cfg
     cfg/SphericalPositionSensor.cfg
+    cfg/DoublePoseSensor.cfg
 )
 
 catkin_package(
@@ -43,6 +44,7 @@ add_subdirectory(src/pose_pressure_msf)
 add_subdirectory(src/position_msf)
 add_subdirectory(src/position_pose_msf)
 add_subdirectory(src/spherical_msf)
+add_subdirectory(src/double_pose_msf)
 endif()
 
 add_executable(test_distort src/test/test_distort.cc)
