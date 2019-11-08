@@ -402,7 +402,7 @@ private:
                 1,
                 "Sensor1 Negative scale detected: " << state.Get<StateDefinition_T::L>()(0) << ". Correcting to 0.1");
             Eigen::Matrix<double, 1, 1> L_;
-            L_ << 0.1;
+            L_ << 1;
             delaystate.Set < StateDefinition_T::L > (L_);
         }
 
@@ -411,7 +411,7 @@ private:
                 1,
                 "Sensor2 Negative scale detected: " << state.Get<StateDefinition_T::L>()(0) << ". Correcting to 0.1");
             Eigen::Matrix<double, 1, 1> L_;
-            L_ << 0.1;
+            L_ << 1;
             delaystate.Set < StateDefinition_T::L > (L_);
         }        
     }
