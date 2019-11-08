@@ -19,6 +19,7 @@ enum StateDefinition {  // Must not manually set the enum values!
   b_w,
   b_a,
   L,
+  L1,
   q_wv,
   p_wv,
   q1_wv,
@@ -50,6 +51,7 @@ typedef boost::fusion::vector<
 
     // States not varying during propagation.
     msf_core::StateVar_T<Eigen::Matrix<double, 1, 1>, L, msf_core::Auxiliary>,  ///< Visual scale.
+    msf_core::StateVar_T<Eigen::Matrix<double, 1, 1>, L1, msf_core::Auxiliary>,  ///< Visual scale.
     msf_core::StateVar_T<Eigen::Quaternion<double>, q_wv,
         msf_core::AuxiliaryNonTemporalDrifting>,  ///< Rotation from the world frame to the frame in which the pose is measured expressed in the world frame.
     msf_core::StateVar_T<Eigen::Matrix<double, 3, 1>, p_wv>,  ///< Translation from the world frame to the frame in which the pose is measured expressed in the world frame.
