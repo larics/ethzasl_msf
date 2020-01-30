@@ -3,7 +3,7 @@
 	<arg name="imu_topic" default="mavros/imu/data" />
 	<arg name="group" default="Pozyx" />
 	<arg name="position_topic" default="mavros/local_position/pose"/>
-    <arg name="namespace"   default="erl_uav"/>
+  <arg name="namespace"   default="$(env UAV_NAMESPACE)"/>
     	
     <node name="msf_pose_sensor" pkg="msf_updates" type="pose_sensor" clear_params="true" output="screen"
         ns="$(arg namespace)">
