@@ -45,7 +45,7 @@ class DoublePoseSensorManager :
     /* Camera Pose sensor Handler type definition */
     typedef msf_pose_sensor::PoseSensorHandler<
         msf_updates::pose_measurement::PoseMeasurement<
-            msf_updates::EKFState::StateDefinition_T::L,
+            msf_updates::EKFState::StateDefinition_T::L1,
             msf_updates::EKFState::StateDefinition_T::q1_ic,
             msf_updates::EKFState::StateDefinition_T::p1_ic,
             msf_updates::EKFState::StateDefinition_T::q1_wv,
@@ -53,7 +53,7 @@ class DoublePoseSensorManager :
         DoublePoseSensorManager> CameraPoseSensorHandler_T;
     friend class msf_pose_sensor::PoseSensorHandler<
         msf_updates::pose_measurement::PoseMeasurement<
-            msf_updates::EKFState::StateDefinition_T::L,
+            msf_updates::EKFState::StateDefinition_T::L1,
             msf_updates::EKFState::StateDefinition_T::q1_ic,
             msf_updates::EKFState::StateDefinition_T::p1_ic,
             msf_updates::EKFState::StateDefinition_T::q1_wv,
@@ -133,50 +133,27 @@ private:
         if ((level & msf_updates::DoublePoseSensor_SET_HEIGHT)
             && config.core_set_height == true) {
             Eigen::Matrix<double, 3, 1> p = gps_pose_handler_->GetPositionMeasurement();
+            Eigen::Matrix<double, 3, 1> p_2 = camera_pose_handler_->GetPositionMeasurement();
+
             if (p.norm() == 0) {
                 MSF_WARN_STREAM(
                     "No measurements received yet to initialize position. Height init "
                     "not allowed.");
                 return;
             }
+
+            if (p_2.norm() == 0) {
+            MSF_WARN_STREAM(
+                    "No measurement recieved yet from camera sensor, Height init "
+                    "not allowed."
+                );
+                return;
+        }
+
             double scale = p[2] / config.core_height;
             Init(scale);
             config.core_set_height = false;
         }
-    }
-
-    bool InitScale(sensor_fusion_comm::InitScale::Request &req,
-                    sensor_fusion_comm::InitScale::Response &res) {
-        ROS_INFO("Initialize filter with scale %f", req.scale);
-        Init(req.scale);
-        res.result = "Initialized scale";
-        return true;
-    }
-
-    bool InitHeight(sensor_fusion_comm::InitHeight::Request &req,
-                    sensor_fusion_comm::InitHeight::Response &res) {
-        ROS_INFO("Initialize filter with height %f", req.height);
-        Eigen::Matrix<double, 3, 1> p = gps_pose_handler_->GetPositionMeasurement();
-        if (p.norm() == 0) {
-            MSF_WARN_STREAM(
-                "No measurements received yet to initialize position. Height init "
-                "not allowed.");
-            return false;
-        }
-        std::stringstream ss;
-        if (std::abs(req.height) > MIN_INITIALIZATION_HEIGHT) {
-            double scale = p[2] / req.height;
-            Init(scale);
-            ss << scale;
-            res.result = "Initialized by known height. Initial scale = " + ss.str();
-        } else {
-            ss << "Height to small for initialization, the minimum is "
-                << MIN_INITIALIZATION_HEIGHT << "and " << req.height << "was set.";
-            MSF_WARN_STREAM(ss.str());
-            res.result = ss.str();
-            return false;
-        }
-        return true;
     }
 
     void Init(double scale) const {
@@ -206,12 +183,25 @@ private:
         // Initialize from GPS readings
         p_vc = gps_pose_handler_->GetPositionMeasurement();
         q_cv = gps_pose_handler_->GetAttitudeMeasurement();
-        if (p_vc.norm() == 0)
+
+        // Initialize from camera readings
+        p1_vc = camera_pose_handler_->GetPositionMeasurement();
+        q1_cv = camera_pose_handler_->GetAttitudeMeasurement();
+
+        MSF_INFO_STREAM(
+            "initial measurement source 1 pos:["<<p_vc.transpose()<<"] orientation: "<<STREAMQUAT(q_cv));
+        MSF_INFO_STREAM(
+            "initial measurement source 2 pos:["<<p1_vc.transpose()<<"] orientation: "<<STREAMQUAT(q1_cv));
+            
+        // Check if we have already input from the measurement sensor.
+        if (!gps_pose_handler_->ReceivedFirstMeasurement())
             MSF_WARN_STREAM(
-                "No measurements received yet to initialize position - using [0 0 0]");
-        if (q_cv.w() == 1)
+                "No measurements received yet to initialize GPS position and attitude - "
+                "using [0 0 0] and [1 0 0 0] respectively");
+        if (!camera_pose_handler_->ReceivedFirstMeasurement())
             MSF_WARN_STREAM(
-                "No measurements received yet to initialize attitude - using [1 0 0 0]");
+                "No measurements received yet to initialize Camera position and attitude - "
+                "using [0 0 0] and [1 0 0 0] respectively");
         
         ros::NodeHandle pnh("~");
         pnh.param("gps_pose_sensor/init/p_ic/x", p_ic[0], 0.0);
@@ -222,8 +212,8 @@ private:
         pnh.param("gps_pose_sensor/init/q_ic/y", q_ic.y(), 0.0);
         pnh.param("gps_pose_sensor/init/q_ic/z", q_ic.z(), 0.0);
         q_ic.normalize();
-        //MSF_INFO_STREAM("IMU - GPS offset position: " << p_ic);
-        //MSF_INFO_STREAM("IMU - GPS offset quaternion: " << q_ic);
+        MSF_INFO_STREAM("IMU - GPS offset position: [" << p_ic.transpose() << "]");
+        MSF_INFO_STREAM("IMU - GPS offset quaternion: " << STREAMQUAT(q_ic));
 
         pnh.param("camera_pose_sensor/init/p_ic/x", p1_ic[0], 0.0);
         pnh.param("camera_pose_sensor/init/p_ic/y", p1_ic[1], 0.0);
@@ -233,8 +223,8 @@ private:
         pnh.param("camera_pose_sensor/init/q_ic/y", q1_ic.y(), 0.0);
         pnh.param("camera_pose_sensor/init/q_ic/z", q1_ic.z(), 0.0);
         q1_ic.normalize();
-        //MSF_INFO_STREAM("IMU - Camera offset position: " << p1_ic);
-        //MSF_INFO_STREAM("IMU - camera offset quaternion: " << q1_ic);
+        MSF_INFO_STREAM("IMU - Camera offset position: [" << p1_ic.transpose() << "]");
+        MSF_INFO_STREAM("IMU - camera offset quaternion: " << STREAMQUAT(q1_ic));
 
         // Calculate initial attitude and position based on sensor measurements.
         if (!gps_pose_handler_->ReceivedFirstMeasurement()) {  // If there is no pose measurement, only apply q_wv.
@@ -260,6 +250,8 @@ private:
         meas->SetStateInitValue < StateDefinition_T::b_a > (b_a);
         meas->SetStateInitValue < StateDefinition_T::L
             > (Eigen::Matrix<double, 1, 1>::Constant(scale));
+        meas->SetStateInitValue < StateDefinition_T::L1
+            > (Eigen::Matrix<double, 1, 1>::Constant(scale));
         meas->SetStateInitValue < StateDefinition_T::q_wv > (q_wv);
         meas->SetStateInitValue < StateDefinition_T::p_wv > (p_wv);
         meas->SetStateInitValue < StateDefinition_T::q_ic > (q_ic);
@@ -278,12 +270,58 @@ private:
         msf_core_->Init(meas);
     }
 
+    bool InitScale(sensor_fusion_comm::InitScale::Request &req,
+                    sensor_fusion_comm::InitScale::Response &res) {
+        ROS_INFO("Initialize filter with scale %f", req.scale);
+        Init(req.scale);
+        res.result = "Initialized scale";
+        return true;
+    }
+
+    bool InitHeight(sensor_fusion_comm::InitHeight::Request &req,
+                    sensor_fusion_comm::InitHeight::Response &res) {
+        ROS_INFO("Initialize filter with height %f", req.height);
+        Eigen::Matrix<double, 3, 1> p = gps_pose_handler_->GetPositionMeasurement();
+        Eigen::Matrix<double, 3, 1> p_1 = camera_pose_handler_->GetPositionMeasurement();
+
+        if (p.norm() == 0) {
+            MSF_WARN_STREAM(
+                "No measurements received yet to initialize position. Height init "
+                "not allowed.");
+            return false;
+        }
+        
+        if (p_1.norm() == 0) {
+            MSF_WARN_STREAM(
+                "No measurements received yet to initialize second camera position. Height init "
+                "not allowed.");
+            return false;
+        }
+
+        std::stringstream ss;
+        if (std::abs(req.height) > MIN_INITIALIZATION_HEIGHT) {
+            double scale = p[2] / req.height;
+            Init(scale);
+            ss << scale;
+            res.result = "Initialized by known height. Initial scale = " + ss.str();
+        } else {
+            ss << "Height to small for initialization, the minimum is "
+                << MIN_INITIALIZATION_HEIGHT << "and " << req.height << "was set.";
+            MSF_WARN_STREAM(ss.str());
+            res.result = ss.str();
+            return false;
+        }
+        return true;
+    }
+
+
     // Prior to this call, all states are initialized to zero/identity.
     virtual void ResetState(EKFState_T& state) const {
         //set scale to 1
         Eigen::Matrix<double, 1, 1> scale;
         scale << 1.0;
         state.Set < StateDefinition_T::L > (scale);
+        state.Set < StateDefinition_T::L1 > (scale);
     }  
     
     virtual void InitState(EKFState_T& state) const {
@@ -314,8 +352,11 @@ private:
 
         // Compute the blockwise Q values and store them with the states,
         // these then get copied by the core to the correct places in Qd.
-        state.GetQBlock<StateDefinition_T::L>() = (dt * n_L.cwiseProduct(n_L))
-            .asDiagonal();
+        state.GetQBlock<StateDefinition_T::L>() = 
+            (dt * n_L.cwiseProduct(n_L)).asDiagonal();
+        state.GetQBlock<StateDefinition_T::L1>() = 
+            (dt * n_L.cwiseProduct(n_L)).asDiagonal();
+
         state.GetQBlock<StateDefinition_T::q_wv>() =
             (dt * nqwvv.cwiseProduct(nqwvv)).asDiagonal();
         state.GetQBlock<StateDefinition_T::p_wv>() =
@@ -359,11 +400,20 @@ private:
         if (state.Get<StateDefinition_T::L>()(0) < 0) {
             MSF_WARN_STREAM_THROTTLE(
                 1,
-                "Negative scale detected: " << state.Get<StateDefinition_T::L>()(0) << ". Correcting to 0.1");
+                "Sensor1 Negative scale detected: " << state.Get<StateDefinition_T::L>()(0) << ". Correcting to 0.1");
             Eigen::Matrix<double, 1, 1> L_;
             L_ << 0.1;
             delaystate.Set < StateDefinition_T::L > (L_);
         }
+
+        if (state.Get<StateDefinition_T::L1>()(0) < 0) {
+            MSF_WARN_STREAM_THROTTLE(
+                1,
+                "Sensor2 Negative scale detected: " << state.Get<StateDefinition_T::L>()(0) << ". Correcting to 0.1");
+            Eigen::Matrix<double, 1, 1> L_;
+            L_ << 0.1;
+            delaystate.Set < StateDefinition_T::L > (L_);
+        }        
     }
 };
 

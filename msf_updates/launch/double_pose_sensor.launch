@@ -4,13 +4,13 @@
 	<arg name="imu_topic" default="/mavros/imu/data" />
 	<arg name="group" default="Pozyx" />
 	<arg name="position_topic" default="/mavros/local_position/pose"/>
-    <arg name="camera_odometry" default="/bebop/pose"/>
+    <arg name="camera_odometry" default="/rovio/pose_with_covariance_stamped"/>
     <arg name="namespace"   default="erl_uav"/>
     
     <node name="double_pose_sensor" pkg="msf_updates" type="double_pose_sensor" clear_params="true" output="screen">
        <remap from="msf_core/imu_state_input" to="$(arg imu_topic)" />
           <remap from="msf_updates/gps_pose_sensor/pose_input" to="$(arg position_topic)" />
-          <remap from="msf_updates/camera_pose_sensor/pose_input" to="$(arg camera_odometry)" />
+          <remap from="msf_updates/camera_pose_sensor/pose_with_covariance_input" to="$(arg camera_odometry)" />
           <param name="capability_group" value="$(arg group)" />
           <rosparam file="$(find msf_updates)/msf_double_pose_params.yaml"/>
     </node>
